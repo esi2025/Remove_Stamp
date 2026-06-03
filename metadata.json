@@ -1,0 +1,6 @@
+{
+  "name": "تفکیک هوشمند مهر و امضا",
+  "description": "سامانه هوشمند مجهز به مدل بینایی سنجه‌ای Gemini جهت اسکن اسناد و لایه‌برداری و جداسازی مهرهای جوهری و امضاها",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -264,12 +264,14 @@ export const InteractiveCropper: React.FC<InteractiveCropperProps> = ({
         style={{ touchAction: "none" }}
       >
         {/* Document Image */}
-        <img
-          src={imageSrc}
-          alt="Document Viewer"
-          draggable={false}
-          className="max-h-[500px] w-auto h-auto object-contain select-none pointer-events-none"
-        />
+        {imageSrc ? (
+          <img
+            src={imageSrc}
+            alt="Document Viewer"
+            draggable={false}
+            className="max-h-[500px] w-auto h-auto object-contain select-none pointer-events-none"
+          />
+        ) : null}
 
         {/* Overlay Bounding Boxes */}
         {renderResizableBox(stampBox, true)}

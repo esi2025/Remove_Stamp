@@ -22,6 +22,7 @@ interface ProcessedProductProps {
   config: ElementConfig;
   isStamp: boolean;
   onChangeConfig: (newConfig: ElementConfig) => void;
+  onSaveToHistory?: (thumbnailUrl: string) => void;
 }
 
 export const ProcessedProduct: React.FC<ProcessedProductProps> = ({
@@ -29,6 +30,7 @@ export const ProcessedProduct: React.FC<ProcessedProductProps> = ({
   config,
   isStamp,
   onChangeConfig,
+  onSaveToHistory,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,6 +55,11 @@ export const ProcessedProduct: React.FC<ProcessedProductProps> = ({
 
   // Redraw, super-sample, and pre-heat comparison assets whenever boundaries shift
   useEffect(() => {
+    if (!imageSrc) {
+      setOutputUrl("");
+      setOriginalUrl("");
+      return;
+    }
     let active = true;
     const updateOutput = async () => {
       setIsProcessing(true);
@@ -152,6 +159,9 @@ export const ProcessedProduct: React.FC<ProcessedProductProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    if (onSaveToHistory) {
+      onSaveToHistory(outputUrl);
+    }
   };
 
   // Render client-side display canvas backing
@@ -616,15 +626,30 @@ export const ProcessedProduct: React.FC<ProcessedProductProps> = ({
         </div>
       </div>
 
-      {/* Dowload block triggers */}
-      <button
-        onClick={handleDownload}
-        disabled={!outputUrl}
-        className="w-full bg-slate-900 hover:bg-slate-800 text-white py-2 px-4 rounded-xl font-medium text-xs flex items-center justify-center gap-2 shadow hover:shadow-md active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all mt-1"
-      >
-        <Download className="w-4 h-4 text-blue-400" />
-        <span>دانلود {isStamp ? "مهر" : "امضا"} تمیز و شفاف (PNG)</span>
-      </button>
+      {/* Dowload & History Pin triggers */}
+      <div className="grid grid-cols-6 gap-2 mt-1">
+        <button
+          onClick={handleDownload}
+          disabled={!outputUrl}
+          className="col-span-5 bg-slate-900 hover:bg-slate-800 text-white py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow hover:shadow-md active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+        >
+          <Download className="w-4 h-4 text-blue-400" />
+          <span>دانلود خروجی شفاف {isStamp ? "مهر" : "امضا"}</span>
+        </button>
+        <button
+          onClick={() => {
+            if (outputUrl && onSaveToHistory) {
+              onSaveToHistory(outputUrl);
+            }
+          }}
+          type="button"
+          disabled={!outputUrl}
+          className="col-span-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          title="افزودن مستقیم این خروجی به تاریخچه پردازش‌های اخیر پایین صفحه"
+        >
+          <Sparkles className="w-4 h-4" />
+        </button>
+      </div>
 
     </div>
   );

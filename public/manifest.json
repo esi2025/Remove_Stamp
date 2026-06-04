@@ -1,0 +1,29 @@
+{
+  "short_name": "تفکیک مهر و امضا",
+  "name": "سامانه استخراج و تفکیک هوشمند مهر و امضا",
+  "description": "استخراج، لایه‌برداری و جداسازی هوشمند مهر و امضا از فاکتورها و اسناد با هوش مصنوعی و فیلترهای کنتراست",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#4f46e5",
+  "theme_color": "#4f46e5",
+  "display": "standalone",
+  "orientation": "any"
+}

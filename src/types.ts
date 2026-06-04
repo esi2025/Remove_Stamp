@@ -22,3 +22,13 @@ export interface DetectionResult {
   stamp: BoundingBox | null;
   signature: BoundingBox | null;
 }
+
+export interface HistoryItem {
+  id: string;
+  timestamp: string;
+  type: "stamp" | "signature";
+  thumbnailUrl: string;
+  filterMode: FilterMode;
+  documentName: string;
+}
+

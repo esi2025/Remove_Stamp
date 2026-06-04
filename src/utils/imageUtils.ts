@@ -9,6 +9,9 @@ export async function processDocumentElement(
   config: ElementConfig,
   isStamp: boolean
 ): Promise<string> {
+  if (!imageSrc) {
+    return "";
+  }
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -234,6 +237,9 @@ export async function getOriginalCrop(
   imageSrc: string,
   config: ElementConfig
 ): Promise<string> {
+  if (!imageSrc) {
+    return "";
+  }
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous";

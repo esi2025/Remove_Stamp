@@ -16,9 +16,13 @@ import {
   Stamp,
   PenTool,
   AlertTriangle,
-  Info
+  Info,
+  History,
+  Trash2,
+  ExternalLink,
+  Download
 } from "lucide-react";
-import { BoundingBox, ElementConfig } from "./types";
+import { BoundingBox, ElementConfig, HistoryItem } from "./types";
 import { generateSampleInvoice, generateSampleContract, generateSampleLease } from "./utils/documentGenerator";
 import { InteractiveCropper } from "./components/InteractiveCropper";
 import { ProcessedProduct } from "./components/ProcessedProduct";
@@ -28,6 +32,40 @@ export default function App() {
   const [isDemo, setIsDemo] = useState<boolean>(true);
   const [selectedFile, setSelectedFile] = useState<"invoice" | "contract" | "lease">("invoice");
   
+  // Windows Desktop integration state
+  const [showWindowsModal, setShowWindowsModal] = useState<boolean>(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    const handleAppInstalled = () => {
+      console.log('PWA is installed');
+      setDeferredPrompt(null);
+    };
+    
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallPWA = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
+
   // Tab control
   const [activeEntity, setActiveEntity] = useState<"stamp" | "signature">("stamp");
   
@@ -37,6 +75,25 @@ export default function App() {
     type: "info",
     message: "به سامانه تفکیک مهر و امضا خوش آمدید. فاکتور نمونه بارگذاری شده است. می‌توانید موقعیت کادرها را جابجا کنید.",
   });
+
+  // Process history state
+  const [historyList, setHistoryList] = useState<HistoryItem[]>(() => {
+    try {
+      const saved = localStorage.getItem("processed_history_v1");
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (_) {}
+    return [];
+  });
+
+  const [selectedHistoryItem, setSelectedHistoryItem] = useState<HistoryItem | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("processed_history_v1", JSON.stringify(historyList));
+    } catch (_) {}
+  }, [historyList]);
 
   // State configurations for our targets
   const [stampConfig, setStampConfig] = useState<ElementConfig>({
@@ -336,6 +393,40 @@ export default function App() {
     });
   };
 
+  const getDocumentDisplayName = (): string => {
+    if (!isDemo) return "سند بارگذاری شده کاربر";
+    if (selectedFile === "invoice") return "فاکتور خرید رسمی";
+    if (selectedFile === "contract") return "قرارداد رسمی واگذاری";
+    return "سند مالکیت تک‌برگ";
+  };
+
+  const handleSaveToHistory = (thumbnailUrl: string, type: "stamp" | "signature") => {
+    if (!thumbnailUrl) return;
+    const documentName = getDocumentDisplayName();
+    const filter = type === "stamp" ? stampConfig.filterMode : signatureConfig.filterMode;
+    
+    const newItem: HistoryItem = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: new Date().toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" }),
+      type,
+      thumbnailUrl,
+      filterMode: filter,
+      documentName,
+    };
+
+    setHistoryList((prev) => {
+      if (prev.length > 0 && prev[0].thumbnailUrl === thumbnailUrl) {
+        return prev;
+      }
+      return [newItem, ...prev.filter(item => item.thumbnailUrl !== thumbnailUrl)].slice(0, 5);
+    });
+    
+    setFeedback({
+      type: "success",
+      message: `پردازش اخیر (${type === "stamp" ? "مهر شفاف" : "امضا شفاف"}) به لیست خروجی‌های اخیر در پایین صفحه الحاق گردید.`,
+    });
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans" dir="rtl">
       
@@ -350,10 +441,24 @@ export default function App() {
             <p className="text-xs text-slate-400">لیرگذاری، حذف پس‌زمینه سفید و جداسازی مهرهای جوهری و امضاهای اسناد با مدل بینایی سنجی Gemini</p>
           </div>
         </div>
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
+          {/* Windows App Trigger Button */}
+          <button
+            type="button"
+            onClick={() => setShowWindowsModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-extrabold transition-all duration-200 shadow-xs cursor-pointer"
+            title="تبدیل و نصب به عنوان برنامه مستقل ویندوزی"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-600"></span>
+            </span>
+            <span>🖥️ نسخه تحت ویندوز App</span>
+          </button>
+
           <div className="flex items-center gap-3">
             <span className="text-xs font-semibold px-2 py-1 bg-green-100 text-green-700 rounded-md">پردازش فعال</span>
-            <span className="text-sm text-slate-500 font-medium">کاربر: مدیریت فنی</span>
+            <span className="text-sm text-slate-500 font-medium hidden md:inline">کاربر: مدیریت فنی</span>
           </div>
           <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-semibold text-indigo-600 shadow-inner">
             مدیر
@@ -564,6 +669,7 @@ export default function App() {
                   config={stampConfig}
                   isStamp={true}
                   onChangeConfig={setStampConfig}
+                  onSaveToHistory={(url) => handleSaveToHistory(url, "stamp")}
                 />
               ) : (
                 <ProcessedProduct
@@ -572,6 +678,7 @@ export default function App() {
                   config={signatureConfig}
                   isStamp={false}
                   onChangeConfig={setSignatureConfig}
+                  onSaveToHistory={(url) => handleSaveToHistory(url, "signature")}
                 />
               )}
 
@@ -590,6 +697,246 @@ export default function App() {
           )}
 
         </div>
+
+        {/* 📋 Recent Processed History Section */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-2 text-right">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-100 pb-4 mb-5 gap-4">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-indigo-50 text-indigo-700 rounded-lg">
+                <History className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 leading-tight">تاریخچه خروجی‌های تفکیک‌شده اخیر (۵ پردازش اخیر)</h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">مهرها و امضاهای اخیری که با کلیک روی ستاره یا دکمه دانلود ثبت و لایه‌برداری کرده‌اید</p>
+              </div>
+            </div>
+            
+            {historyList.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setHistoryList([]);
+                  setFeedback({ type: "info", message: "تمامی تاریخچه‌های پردازش اخیر پاک شدند." });
+                }}
+                className="text-xs text-red-500 hover:text-red-700 font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-red-100 bg-red-50/50 px-3 py-1.5 rounded-lg hover:bg-red-50 self-end sm:self-auto"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>پاک‌سازی تاریخچه</span>
+              </button>
+            )}
+          </div>
+
+          {historyList.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-slate-400 gap-3 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+              <div className="p-3 bg-white rounded-full border border-slate-150 text-slate-300">
+                <History className="w-8 h-8" />
+              </div>
+              <p className="text-xs font-semibold">هنوز پردازش یا دانلودی برای ثبت در تاریخچه اخیر وجود ندارد.</p>
+              <p className="text-[10px] text-slate-400 max-w-sm text-center leading-relaxed">
+                با انجام لایه‌برداری و دانلود خروجی مهر یا امضا (یا کلیک روی آیکون ستاره 🌟 در بخش پیش‌نمایش خروجی)، نسخه‌های ذخیره شده و مستقل اینجا برای دسترسی آسان لیست می‌شوند.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              {historyList.map((item) => (
+                <div
+                  key={item.id}
+                  className="group relative bg-slate-50 border border-slate-200 rounded-xl overflow-hidden hover:border-indigo-300 hover:shadow-md transition-all flex flex-col h-48"
+                >
+                  {/* Image Canvas with checkerboard background */}
+                  <div
+                    onClick={() => setSelectedHistoryItem(item)}
+                    className="flex-1 min-h-[110px] flex items-center justify-center p-3 cursor-zoom-in relative"
+                    style={{
+                      backgroundImage: "conic-gradient(#f1f5f9 25%, #ffffff 0, #ffffff 50%, #f1f5f9 0, #f1f5f9 75%, #ffffff 0)",
+                      backgroundSize: "12px 12px",
+                      backgroundPosition: "0 0"
+                    }}
+                  >
+                    <img
+                      src={item.thumbnailUrl}
+                      alt={item.type === "stamp" ? "مهر" : "امضا"}
+                      className="max-h-full max-w-full object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-300"
+                    />
+                    
+                    {/* Hover Inspect Overlay */}
+                    <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <span className="text-[10px] text-white bg-slate-900/90 py-1 px-2.5 rounded-full font-bold flex items-center gap-1.5 shadow-sm">
+                        <ExternalLink className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>بررسی و دانلود مجدد</span>
+                      </span>
+                    </div>
+
+                    {/* Badge type */}
+                    <span className={`absolute top-2 right-2 text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-sm ${
+                      item.type === "stamp" 
+                        ? "bg-indigo-100 text-indigo-800 border border-indigo-200" 
+                        : "bg-purple-100 text-purple-800 border border-purple-200"
+                    }`}>
+                      {item.type === "stamp" ? "🌟 مهر تفکیکی" : "✍️ امضا"}
+                    </span>
+                  </div>
+
+                  {/* Metadata and Quick download/trash actions */}
+                  <div className="bg-white border-t border-slate-150 p-2.5 flex flex-col justify-between select-none">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <span className="text-[10px] font-extrabold text-slate-800 truncate max-w-[120px]" title={item.documentName}>
+                        {item.documentName}
+                      </span>
+                      <span className="text-[9px] font-mono text-slate-450 shrink-0">
+                        {item.timestamp}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-100">
+                      <span className="text-[9px] font-bold text-slate-500 truncate mt-0.5 max-w-[80px]">
+                        فیلتر: {
+                          item.filterMode === "blue_stamp" ? "مهر آبی" :
+                          item.filterMode === "red_stamp" ? "مهر قرمز" :
+                          item.filterMode === "dark_stroke" ? "رنگ تیره" :
+                          item.filterMode === "monochrome" ? "سیاه سفید" : "رنگ اصلی"
+                        }
+                      </span>
+                      
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const link = document.createElement("a");
+                            link.href = item.thumbnailUrl;
+                            link.download = item.type === "stamp" ? "extracted_seal.png" : "extracted_signature.png";
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }}
+                          className="p-1 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 rounded transition-colors"
+                          title="دانلود مستقیم PNG"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHistoryList((prev) => prev.filter((h) => h.id !== item.id));
+                            setFeedback({ type: "info", message: "آیتم از تاریخچه پردازش حذف شد." });
+                          }}
+                          className="p-1 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded transition-colors"
+                          title="حذف از تاریخچه"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 🔍 Lightbox / Inspect Modal for Recent Processes */}
+        {selectedHistoryItem && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden flex flex-col text-right"
+              dir="rtl"
+            >
+              {/* Modal Header */}
+              <div className="bg-slate-900 px-6 py-4 flex items-center justify-between text-white">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🔍</span>
+                  <h3 className="font-extrabold text-xs sm:text-sm">اطلاعات خروجی تفکیک‌شده ثبت شده</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedHistoryItem(null)}
+                  className="p-1 px-2 hover:bg-white/10 rounded text-white/95 text-xs font-semibold transition-all cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 flex flex-col items-center justify-center gap-5 text-slate-700">
+                {/* Image in large canvas */}
+                <div
+                  className="w-full h-64 border border-slate-200 rounded-xl overflow-auto flex items-center justify-center p-6 relative"
+                  style={{
+                    backgroundImage: "conic-gradient(#f1f5f9 25%, #ffffff 0, #ffffff 50%, #f1f5f9 0, #f1f5f9 75%, #ffffff 0)",
+                    backgroundSize: "16px 16px",
+                    backgroundPosition: "0 0"
+                  }}
+                >
+                  <img
+                    src={selectedHistoryItem.thumbnailUrl}
+                    alt="Extracted Item Large Viewer"
+                    className="max-h-full max-w-full object-contain drop-shadow-lg"
+                  />
+                </div>
+
+                {/* Specs Table */}
+                <div className="w-full space-y-2.5 text-xs text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <div className="flex justify-between items-center py-1 border-b border-slate-150">
+                    <span className="font-bold">نوع خروجی:</span>
+                    <span className={`px-2 py-0.5 rounded-full font-bold ${
+                      selectedHistoryItem.type === "stamp" ? "bg-indigo-50 text-indigo-700" : "bg-purple-50 text-purple-700"
+                    }`}>
+                      {selectedHistoryItem.type === "stamp" ? "مهر ژلاتینی کادردار" : "امضای خودکار یا دستی زنده"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-slate-150">
+                    <span className="font-bold">مربوط به سند:</span>
+                    <span className="font-semibold text-slate-800">{selectedHistoryItem.documentName}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1 border-b border-slate-150">
+                    <span className="font-bold">زمان پردازش و ثبت:</span>
+                    <span className="font-mono">{selectedHistoryItem.timestamp}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1">
+                    <span className="font-bold">فیلتر کانال رنگی تفکیکی:</span>
+                    <span className="font-semibold text-indigo-700">
+                      {
+                        selectedHistoryItem.filterMode === "blue_stamp" ? "مهر جوهر سورمه‌ای/آبی" :
+                        selectedHistoryItem.filterMode === "red_stamp" ? "مهر جوهر زرشکی/سرخ" :
+                        selectedHistoryItem.filterMode === "dark_stroke" ? "امضای آبی/سیاه خودکار" :
+                        selectedHistoryItem.filterMode === "monochrome" ? "سیاه و سفید کانتراست بالا" : "رنگ پایه تصویر پس‌زمینه"
+                      }
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="bg-slate-50 border-t border-slate-150 px-6 py-4 flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const link = document.createElement("a");
+                    link.href = selectedHistoryItem.thumbnailUrl;
+                    link.download = selectedHistoryItem.type === "stamp" ? "transparent_seal.png" : "transparent_signature.png";
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-indigo-100"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>دانلود مجدد خروجی فاقد پس‌زمینه</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedHistoryItem(null)}
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-lg transition-all cursor-pointer"
+                >
+                  بستن پنجره
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
       </main>
 
       {/* Footer Stats as specified in the Professional Polish design mock */}
@@ -598,6 +945,114 @@ export default function App() {
         <div>نسخه سیستم: v4.2.1-PRO</div>
         <div>تمامی حقوق برای پردازش هوشمند محفوظ است.</div>
       </footer>
+
+      {/* 🖥️ Windows Desktop Conversion Modal (PWA & Electron packing tool) */}
+      {showWindowsModal && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full overflow-hidden flex flex-col"
+          >
+            {/* Modal Header */}
+            <div className="bg-indigo-600 px-6 py-4 flex items-center justify-between text-white">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🖥️</span>
+                <h3 className="font-extrabold text-sm">تبدیل به نرم‌افزار تحت ویندوز (Windows Desktop Application)</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWindowsModal(false)}
+                className="p-1 px-2 hover:bg-white/10 rounded text-white/90 text-sm font-semibold transition-all cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto max-h-[80vh] space-y-5 text-right text-slate-700" dir="rtl">
+              <div className="bg-sky-50 border border-sky-100 text-sky-800 p-3.5 rounded-xl text-[11px] leading-relaxed font-semibold">
+                ما دو راهکار فوق‌العاده برای اجرای این سامانه به صورت یک نرم‌افزار بومی، مستقل و پرسرعت آفلاین در سیستم‌عامل ویندوز شما قرار داده‌ایم.
+              </div>
+
+              {/* Method 1: Instant PWA Install */}
+              <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 hover:bg-slate-50 transition-all">
+                <h4 className="font-extrabold text-xs text-indigo-900 mb-2.5 flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold">۱</span>
+                  <span className="text-xs">روش اول: نصب مستقیم و آنی تحت وب (PWA) — بسیار ساده و سریع</span>
+                </h4>
+                <p className="text-[11px] text-slate-500 mb-3 leading-relaxed">
+                  فناوری PWA به شما امکان می‌دهد این اپلیکیشن را هم‌اکنون به منوی استارت و نوار وظیفه (Taskbar) ویندوز خود اضافه کنید. پس از نصب، برنامه در یک پنجره مستقل سیستمی، بدون حاشیه‌های مرورگر و کاملا مشابه نرم‌افزارهای بومی ویندوز اجرا خواهد شد.
+                </p>
+
+                {deferredPrompt ? (
+                  <button
+                    type="button"
+                    onClick={handleInstallPWA}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-lg text-xs transition-all shadow-md shadow-indigo-100 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span>نصب مستقیم نرم‌افزار روی ویندوز شما</span>
+                  </button>
+                ) : (
+                  <div className="bg-amber-50 border border-amber-200 text-amber-850 p-3 rounded-lg text-[10px] leading-relaxed space-y-1">
+                    <p className="font-bold text-amber-900">⚠️ نکات راهنمای نصب مستقیم PWA:</p>
+                    <p className="opacity-95 leading-relaxed">
+                      به دلیل اینکه اپلیکیشن در حال حاضر در قالب یک فریم شبیه‌ساز (iframe) در استودیو اجرا می‌شود، مرورگرها اجازه شروع نصب مستقیم را به فریم‌های داخلی نمی‌دهند.
+                    </p>
+                    <p className="font-semibold text-indigo-700 pt-1 leading-relaxed">
+                      💡 راه‌حل فوری: کافی است از نوار ابزار بالای استودیو دکمه <span className="font-bold underline">«Open in unit window / tab»</span> را بزنید تا برنامه در تب مجزا بالا بیاید. سپس دکمه نصب فعال شده یا می‌توانید مستقیماً آیکون نصب (علامت مانیتور یا ⊕) در سمت راست آدرس بار Chrome را کلیک کنید!
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Method 2: Pack Native EXE using Electron */}
+              <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 hover:bg-slate-50 transition-all">
+                <h4 className="font-extrabold text-xs text-indigo-900 mb-2.5 flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold">۲</span>
+                  <span className="text-xs">روش دوم: خروجی فایل اجرایی مستقل و بومی دسکتاپ (Windows Desktop .EXE)</span>
+                </h4>
+                <p className="text-[11px] text-slate-500 mb-2.5 leading-relaxed">
+                  ما کدهای رانر بومی **Electron.js** و پکیجر پرتابل ویندوز را مستقیماً در این پروژه قرار داده‌ایم. برای ایجاد فایل نصبی <code className="font-mono bg-slate-100 px-1 py-0.5 rounded text-indigo-600 text-[10px]">Setup.exe</code> مراحل ساده زیر را در سیستم خود انجام دهید:
+                </p>
+
+                <div className="bg-slate-900 text-slate-200 p-4.5 rounded-xl font-mono text-left text-xs leading-6 overflow-x-auto space-y-3.5 shadow-inner">
+                  <div>
+                    <span className="text-slate-450 text-[10px] block"># ۱. ابتدا سورس کد پروژه را از منوی بالا دانلود کرده و از حالت فشرده خارج کنید.</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-450 text-[10px] block"># ۲. ترمینال را در پوشه پروژه باز کنید و دستور نصب وابستگی‌ها را بزنید:</span>
+                    <span className="text-teal-400 font-bold">npm</span> install
+                  </div>
+                  <div>
+                    <span className="text-slate-450 text-[10px] block"># ۳. ابزار بومی‌ساز دسکتاپ را نصب کنید:</span>
+                    <span className="text-teal-400 font-bold">npm</span> install -D electron electron-builder
+                  </div>
+                  <div>
+                    <span className="text-slate-450 text-[10px] block"># ۴. دستور کامپایل خودکار و پکیج کردن به EXE را کلیک کنید:</span>
+                    <span className="text-teal-400 font-bold">npm</span> run build-pc
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-slate-450 mt-2 leading-relaxed">
+                  * فایل نصبی تولید شده نهایی در پوشه <code className="font-mono bg-slate-100 px-1 py-0.5 rounded text-indigo-600 text-[10px]">dist/</code> در ویندوز شما ذخیره خواهد شد و کاملاً بی‌نیاز از اینترنت لایه‌برداری را با کیفیتی بی‌نظیر انجام می‌دهد.
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-slate-50 border-t border-slate-150 px-6 py-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowWindowsModal(false)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-lg transition-all cursor-pointer"
+              >
+                متوجه شدم (بستن پنجره)
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
     </div>
   );

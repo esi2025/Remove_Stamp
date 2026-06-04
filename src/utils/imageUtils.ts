@@ -14,7 +14,7 @@ export async function processDocumentElement(
     img.crossOrigin = "anonymous";
     img.onload = () => {
       try {
-        const { box, threshold, colorMatchStrength, filterMode, strokeDensityBoost, eraserPaths } = config;
+        const { box, threshold, colorMatchStrength, filterMode, strokeDensityBoost, eraserPaths, rotation = 0, contrast = 0 } = config;
 
         // Create temporary canvas for calculations
         const canvas = document.createElement("canvas");
@@ -24,41 +24,73 @@ export async function processDocumentElement(
           return;
         }
 
-        // Calculate absolute pixel boundaries
+        // High quality scale-up factor for crystal clear 300 DPI resolution and super-sampled anti-aliasing
+        const scaleFactor = 3.0;
         const sourceX = box.x * img.width;
         const sourceY = box.y * img.height;
         const sourceWidth = box.width * img.width;
         const sourceHeight = box.height * img.height;
 
-        // Set dimensions of the cropped output
-        canvas.width = Math.max(1, Math.round(sourceWidth));
-        canvas.height = Math.max(1, Math.round(sourceHeight));
+        // Set dimensions of the cropped output (upscaled for incredible crispness)
+        canvas.width = Math.max(1, Math.round(sourceWidth * scaleFactor));
+        canvas.height = Math.max(1, Math.round(sourceHeight * scaleFactor));
 
-        // Draw cropped region of the source document
-        ctx.drawImage(
-          img,
-          sourceX,
-          sourceY,
-          sourceWidth,
-          sourceHeight,
-          0,
-          0,
-          canvas.width,
-          canvas.height
-        );
+        // Let's apply free rotation if needed
+        ctx.save();
+        if (rotation !== 0) {
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate((rotation * Math.PI) / 180);
+          ctx.drawImage(
+            img,
+            sourceX,
+            sourceY,
+            sourceWidth,
+            sourceHeight,
+            -canvas.width / 2,
+            -canvas.height / 2,
+            canvas.width,
+            canvas.height
+          );
+        } else {
+          ctx.drawImage(
+            img,
+            sourceX,
+            sourceY,
+            sourceWidth,
+            sourceHeight,
+            0,
+            0,
+            canvas.width,
+            canvas.height
+          );
+        }
+        ctx.restore();
 
         // Fetch pixel buffer
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageData.data;
 
+        // Contrast scale factor helper
+        const contrastFactor = contrast !== 0 ? (259 * (contrast + 255)) / (255 * (259 - contrast)) : 1;
+
         // Loop pixels
         for (let i = 0; i < data.length; i += 4) {
-          const r = data[i];
-          const g = data[i + 1];
-          const b = data[i + 2];
+          let r = data[i];
+          let g = data[i + 1];
+          let b = data[i + 2];
           let a = data[i + 3];
 
           if (a === 0) continue;
+
+          // Apply contrast scale factors to color channels
+          if (contrast !== 0) {
+            r = Math.min(255, Math.max(0, Math.round(contrastFactor * (r - 128) + 128)));
+            g = Math.min(255, Math.max(0, Math.round(contrastFactor * (g - 128) + 128)));
+            b = Math.min(255, Math.max(0, Math.round(contrastFactor * (b - 128) + 128)));
+            data[i] = r;
+            data[i + 1] = g;
+            data[i + 2] = b;
+          }
 
           // 1. Calculate Average Luminance / Gray value
           const avg = (r + g + b) / 3;
@@ -193,3 +225,76 @@ export async function processDocumentElement(
     img.src = imageSrc;
   });
 }
+
+/**
+ * Returns a high-definition, unfiltered crop of the original document
+ * with rotation applied for Before/After comparison.
+ */
+export async function getOriginalCrop(
+  imageSrc: string,
+  config: ElementConfig
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const { box, rotation = 0 } = config;
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Unable to get 2D context"));
+          return;
+        }
+
+        const scaleFactor = 3.0;
+        const sourceX = box.x * img.width;
+        const sourceY = box.y * img.height;
+        const sourceWidth = box.width * img.width;
+        const sourceHeight = box.height * img.height;
+
+        canvas.width = Math.max(1, Math.round(sourceWidth * scaleFactor));
+        canvas.height = Math.max(1, Math.round(sourceHeight * scaleFactor));
+
+        ctx.save();
+        if (rotation !== 0) {
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate((rotation * Math.PI) / 180);
+          ctx.drawImage(
+            img,
+            sourceX,
+            sourceY,
+            sourceWidth,
+            sourceHeight,
+            -canvas.width / 2,
+            -canvas.height / 2,
+            canvas.width,
+            canvas.height
+          );
+        } else {
+          ctx.drawImage(
+            img,
+            sourceX,
+            sourceY,
+            sourceWidth,
+            sourceHeight,
+            0,
+            0,
+            canvas.width,
+            canvas.height
+          );
+        }
+        ctx.restore();
+
+        resolve(canvas.toDataURL("image/png"));
+      } catch (err) {
+        reject(err);
+      }
+    };
+    img.onerror = () => {
+      reject(new Error("Failed to load source image Into comparison processor"));
+    };
+    img.src = imageSrc;
+  });
+}
+

@@ -14,6 +14,8 @@ export interface ElementConfig {
   filterMode: FilterMode;
   strokeDensityBoost: number; // Boost ink density / darkness
   eraserPaths: { points: { x: number; y: number }[]; brushSize: number }[];
+  rotation: number;           // Rotation angle in degrees (-180 to 180)
+  contrast: number;           // Contrast adjustment level (-100 to 100)
 }
 
 export interface DetectionResult {

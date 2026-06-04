@@ -46,6 +46,8 @@ export default function App() {
     filterMode: "blue_stamp",
     strokeDensityBoost: 2,
     eraserPaths: [],
+    rotation: 0,
+    contrast: 0,
   });
 
   const [signatureConfig, setSignatureConfig] = useState<ElementConfig>({
@@ -55,6 +57,8 @@ export default function App() {
     filterMode: "dark_stroke",
     strokeDensityBoost: 3,
     eraserPaths: [],
+    rotation: 0,
+    contrast: 0,
   });
 
   // Handle switching document from sidebar presets
@@ -72,6 +76,8 @@ export default function App() {
         filterMode: "blue_stamp",
         strokeDensityBoost: 2,
         eraserPaths: [],
+        rotation: 0,
+        contrast: 0,
       });
       setSignatureConfig({
         box: { x: 0.28, y: 0.38, width: 0.49, height: 0.50 },
@@ -80,6 +86,8 @@ export default function App() {
         filterMode: "dark_stroke",
         strokeDensityBoost: 3,
         eraserPaths: [],
+        rotation: 0,
+        contrast: 0,
       });
       setFeedback({
         type: "success",
@@ -95,6 +103,8 @@ export default function App() {
         filterMode: "red_stamp",
         strokeDensityBoost: 2,
         eraserPaths: [],
+        rotation: 0,
+        contrast: 0,
       });
       setSignatureConfig({
         box: { x: 0.12, y: 0.65, width: 0.28, height: 0.25 },
@@ -103,6 +113,8 @@ export default function App() {
         filterMode: "dark_stroke",
         strokeDensityBoost: 3,
         eraserPaths: [],
+        rotation: 0,
+        contrast: 0,
       });
       setFeedback({
         type: "success",
@@ -118,6 +130,8 @@ export default function App() {
         filterMode: "blue_stamp",
         strokeDensityBoost: 2,
         eraserPaths: [],
+        rotation: 0,
+        contrast: 0,
       });
       setSignatureConfig({
         box: { x: 0.12, y: 0.66, width: 0.32, height: 0.25 },
@@ -126,6 +140,8 @@ export default function App() {
         filterMode: "dark_stroke",
         strokeDensityBoost: 3,
         eraserPaths: [],
+        rotation: 0,
+        contrast: 0,
       });
       setFeedback({
         type: "success",
@@ -178,11 +194,15 @@ export default function App() {
           ...prev,
           box: { x: 0.15, y: 0.15, width: 0.35, height: 0.35 },
           eraserPaths: [],
+          rotation: 0,
+          contrast: 0,
         }));
         setSignatureConfig((prev) => ({
           ...prev,
           box: { x: 0.5, y: 0.45, width: 0.35, height: 0.35 },
           eraserPaths: [],
+          rotation: 0,
+          contrast: 0,
         }));
       }
     };
@@ -297,6 +317,8 @@ export default function App() {
       filterMode: "blue_stamp",
       strokeDensityBoost: 2,
       eraserPaths: [],
+      rotation: 0,
+      contrast: 0,
     });
     setSignatureConfig({
       box: { x: 0.28, y: 0.38, width: 0.49, height: 0.50 },
@@ -305,6 +327,8 @@ export default function App() {
       filterMode: "dark_stroke",
       strokeDensityBoost: 3,
       eraserPaths: [],
+      rotation: 0,
+      contrast: 0,
     });
     setFeedback({
       type: "info",
